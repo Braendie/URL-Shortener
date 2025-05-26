@@ -2,9 +2,11 @@ package main
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/Braendie/url-shortener/internal/config"
+	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/save"
 	"github.com/Braendie/url-shortener/internal/lib/logger/handlers/slogpretty"
 	"github.com/Braendie/url-shortener/internal/lib/logger/sl"
 	"github.com/Braendie/url-shortener/internal/storage/sqlite"
@@ -34,12 +36,28 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
-	//TODO: Написать свой собственный middleware для логгера
+	// TODO: Написать свой собственный middleware для логгера
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.URLFormat)
 
-	// TODO: run server
+	router.Post("/url", save.New(log, storage))
+
+	log.Info("starting server", slog.String("address", cfg.Address))
+
+	srv := &http.Server{
+		Addr:         cfg.Address,
+		Handler:      router,
+		ReadTimeout:  cfg.HTTPServer.Timeout,
+		WriteTimeout: cfg.HTTPServer.Timeout,
+		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
+		log.Error("failed to start server")
+	}
+
+	log.Error("server stopped")
 }
 
 func setupLogger(env string) *slog.Logger {
