@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/Braendie/url-shortener/internal/config"
+	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/delete"
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/redirect"
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/save"
 	"github.com/Braendie/url-shortener/internal/lib/logger/handlers/slogpretty"
@@ -48,7 +49,8 @@ func main() {
 		}))
 
 		r.Post("/", save.New(log, storage))
-		// TODO: написать handler delete и тесты к нему /{id}
+		// TODO: написать тесты к delete
+		r.Delete("/{alias}", delete.New(log, storage))
 	})
 
 	// TODO: протестировать handler и написать к нему тесты
