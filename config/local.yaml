@@ -1,8 +1,16 @@
 env: "local" # local, dev, prod
 storage_path: "./storage"
+app_secret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 http_server:
   address: "localhost:8082"
   timeout: 4s
   idle_timeout: 60s
+  alias_length: 6
   user: "braendie"
   password: "mypass"
+clients:
+  sso:
+    address: "127.0.0.1:44044"
+    Timeout: 4s
+    RetriesCount: 3
+    Insecure: True

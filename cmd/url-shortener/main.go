@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"os"
 
+	ssogrpc "github.com/Braendie/url-shortener/internal/clients/sso/grpc"
 	"github.com/Braendie/url-shortener/internal/config"
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/delete"
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/redirect"
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/save"
+	"github.com/Braendie/url-shortener/internal/http-server/middleware/auth/jwt"
 	"github.com/Braendie/url-shortener/internal/lib/logger/handlers/slogpretty"
 	"github.com/Braendie/url-shortener/internal/lib/logger/sl"
 	"github.com/Braendie/url-shortener/internal/storage/sqlite"
@@ -30,6 +32,16 @@ func main() {
 	log.Info("starting url-shortener", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
 
+	ssoClient, err := ssogrpc.New(
+		log,
+		cfg.Clients.SSO.Address,
+		cfg.Clients.SSO.Timeout,
+		cfg.Clients.SSO.RetriesCount,
+	)
+	if err != nil {
+		panic(err)
+	}
+
 	storage, err := sqlite.New(cfg.StoragePath)
 	if err != nil {
 		log.Error("failed to initialize storage", sl.Err(err))
@@ -38,22 +50,17 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
-	// TODO: Написать свой собственный middleware для логгера
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.URLFormat)
 
 	router.Route("/url", func(r chi.Router) {
-		r.Use(middleware.BasicAuth("url-shortener", map[string]string{
-			cfg.HTTPServer.User: cfg.HTTPServer.Password,
-		}))
+		r.Use(jwt.New(cfg, log, ssoClient))
 
-		r.Post("/", save.New(log, storage))
-		// TODO: написать тесты к delete
+		r.Post("/", save.New(log, storage, cfg.AliasLength))
 		r.Delete("/{alias}", delete.New(log, storage))
 	})
 
-	// TODO: протестировать handler и написать к нему тесты
 	router.Get("/{alias}", redirect.New(log, storage))
 
 	log.Info("starting server", slog.String("address", cfg.Address))

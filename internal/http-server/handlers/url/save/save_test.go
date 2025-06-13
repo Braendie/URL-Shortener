@@ -2,6 +2,7 @@ package save_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,9 +12,14 @@ import (
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/save"
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/save/mocks"
 	"github.com/Braendie/url-shortener/internal/lib/logger/handlers/slogdiscard"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+type Response struct {
+	Alias string `json:"alias"`
+}
 
 func TestSaveHandler(t *testing.T) {
 	cases := []struct {
@@ -22,28 +28,33 @@ func TestSaveHandler(t *testing.T) {
 		url       string
 		respError string
 		mockError error
+		code      int
 	}{
 		{
 			name:  "Success",
 			alias: "test_alias",
 			url:   "https://google.com",
+			code:  http.StatusOK,
 		},
 		{
 			name:  "Empty alias",
 			alias: "",
 			url:   "https://google.com",
+			code:  http.StatusOK,
 		},
 		{
 			name:      "Empty URL",
 			url:       "",
 			alias:     "some_alias",
 			respError: "field URL is a required field URL",
+			code:      http.StatusBadRequest,
 		},
 		{
 			name:      "Invalid URL",
 			url:       "some invalid URL",
 			alias:     "some_alias",
 			respError: "field URL is not a valid URL",
+			code:      http.StatusBadRequest,
 		},
 		{
 			name:      "SaveURL Error",
@@ -51,6 +62,7 @@ func TestSaveHandler(t *testing.T) {
 			alias:     "test_alias",
 			respError: "failed to add url",
 			mockError: errors.New("unexpected error"),
+			code:      http.StatusInternalServerError,
 		},
 	}
 
@@ -68,7 +80,7 @@ func TestSaveHandler(t *testing.T) {
 					Once()
 			}
 
-			handler := save.New(slogdiscard.NewDiscardLogger(), urlSaverMock)
+			handler := save.New(slogdiscard.NewDiscardLogger(), urlSaverMock, 6)
 
 			input := fmt.Sprintf(`{"url": "%s", "alias": "%s"}`, tc.url, tc.alias)
 
@@ -78,9 +90,19 @@ func TestSaveHandler(t *testing.T) {
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 
-			require.Equal(t, rr.Code, http.StatusOK)
+			assert.Equal(t, tc.code, rr.Code)
 
-			// TODO: add more checks
+			var resp Response
+
+			err = json.NewDecoder(rr.Body).Decode(&resp)
+			require.NoError(t, err)
+			if tc.respError == "" {
+				if tc.alias != "" {
+					assert.Equal(t, tc.alias, resp.Alias)
+				} else {
+					assert.NotEmpty(t, resp.Alias)
+				}
+			}
 		})
 	}
 }

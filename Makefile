@@ -14,7 +14,7 @@ clean:
 	rm -f $(BINARY_NAME)
 
 test:
-	go test ./...
+	go test ./... -v | grep -v "no test files"
 
 help:
 	@echo "Использование:"

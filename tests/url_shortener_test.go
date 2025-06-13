@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/url"
+	"path"
 	"testing"
 
 	"github.com/Braendie/url-shortener/internal/http-server/handlers/url/save"
@@ -40,28 +41,35 @@ func TestURLShortener_HappyPath(t *testing.T) {
 		ContainsKey("alias")
 }
 
-func TestURLShortener_SaveRedirect(t *testing.T) {
+func TestURLShortener_SaveRedirectDelete(t *testing.T) {
 	testCases := []struct {
 		name  string
 		url   string
 		alias string
 		error string
+		codeSave  int
+		codeDelete int
 	}{
 		{
 			name:  "Valid URL",
 			url:   gofakeit.URL(),
 			alias: gofakeit.Word() + gofakeit.Word(),
+			codeSave: http.StatusOK,
+			codeDelete: http.StatusNoContent,
 		},
 		{
 			name:  "Invalid URL",
 			url:   "invalid_url",
 			alias: gofakeit.Word(),
 			error: "field URL is not a valid URL",
+			codeSave: http.StatusBadRequest,
 		},
 		{
 			name:  "Empty Alias",
 			url:   gofakeit.URL(),
 			alias: "",
+			codeSave: http.StatusOK,
+			codeDelete: http.StatusNoContent,
 		},
 	}
 
@@ -83,7 +91,7 @@ func TestURLShortener_SaveRedirect(t *testing.T) {
 				}).
 				WithBasicAuth("braendie", "mypass").
 				Expect().
-				Status(http.StatusOK).
+				Status(tc.codeSave).
 				JSON().Object()
 
 			if tc.error != "" {
@@ -109,10 +117,14 @@ func TestURLShortener_SaveRedirect(t *testing.T) {
 			testRedirect(t, alias, tc.url)
 
 			// Remove
-
-			// TODO: Написать тест на удаление этого же alias
+			e.DELETE("/"+path.Join("url", alias)).
+				WithBasicAuth("braendie", "mypass").
+				Expect().
+				Status(tc.codeDelete)
 
 			// Redirect again
+
+			testRedirectNotFound(t, alias)
 		})
 	}
 }
